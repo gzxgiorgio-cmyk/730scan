@@ -1,5 +1,5 @@
 <!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
-<title>730 Scan</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="730 Scan">
+<title>730 Scan</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"><link rel="icon" type="image/png" sizes="48x48" href="icon-48.png"><link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="730 Scan">
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a0e13">
@@ -153,6 +153,7 @@ html{overflow-x:auto}body{min-width:0}main.wrap{grid-template-columns:minmax(0,1
 html,body{overflow-x:hidden;max-width:100%}.row{overflow:hidden}.row .t,.row .m{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}.badges{min-width:0;max-width:100%}.badge{white-space:normal;max-width:100%;overflow-wrap:anywhere;line-height:1.25}.bar-row .h>span:first-child,.grp-h>strong,.cols>span{min-width:0;overflow-wrap:anywhere}.bar-row .h,.grp-h{align-items:flex-start}.row .a{white-space:nowrap}
 .simrow{align-items:flex-start}.simrow>span:first-child{min-width:0;overflow-wrap:break-word;word-break:normal}.simrow>span:last-child,.cl span:last-child,.grp-h .mono,.bar-row .h>span:last-child,.cols>span:last-child,.big,.a{white-space:nowrap!important;flex:none;text-align:right}.simrow,.cl,.cols,.grp-h,.bar-row .h{overflow-wrap:break-word!important}
 .view{padding:0}#v-report,#v-calc{padding:6px}.yslip{padding:10px 8px}.twin{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}.twin>div+div{padding-left:10px}.twin .big{font-size:clamp(1rem,6vw,1.4rem)}.twin .cl{font-size:.68rem}.row .t,.row .m{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}.row{overflow:visible}.row .badge{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;display:inline-block}
+#cam-ov[hidden]{display:none!important}
 </style>
 <header class="top"><div class="wrap"><h1>730 Scan</h1><span class="sub">Spese detraibili e deducibili</span><span class="sub" id="ver"></span></div>
 <nav class="tabs" aria-label="Sezioni">
@@ -368,7 +369,8 @@ html,body{overflow-x:hidden;max-width:100%}.row{overflow:hidden}.row .t,.row .m{
 </main>
 
 <div id="toast" role="status"></div>
-<script src="ort/ort.wasm.min.js"></script><script src="paddle.js"></script><script src="lib/jspdf.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" async></script>
+<div id="cam-ov" hidden style="position:fixed;inset:0;z-index:9999;background:#000;display:flex;flex-direction:column"><video id="cam-video" autoplay playsinline muted style="flex:1;min-height:0;width:100%;object-fit:contain;background:#000"></video><div style="display:flex;gap:12px;justify-content:center;align-items:center;padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));background:#0a0e13"><button class="btn ghost" id="cam-cancel" type="button">Annulla</button><button class="btn accent" id="cam-shot" type="button" style="min-width:150px">Scatta</button></div></div>
+<script src="ort.wasm.min.js"></script><script src="paddle.js"></script><script src="jspdf.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" async></script>
 <script>
 /* ===== CORE: logica pura di lettura e validazione (nessun accesso al DOM) ===== */
 const DOC_TYPES = { scontrino:'Scontrino / Ricevuta', fattura:'Fattura', parcella:'Parcella', bolletta:'Bolletta', assicurazione:'Assicurazione', mutuo:'Mutuo', farmacia:'Farmacia', altro:'Altro' };
@@ -2614,7 +2616,7 @@ async function reanalyzeApply() {
 /* ---------- Eventi ---------- */
 const ACTIONS = {
   go: el => go(el.dataset.view),
-  'pick-camera': () => $('inp-camera').click(),
+  'pick-camera': () => openCamera(),
   'pick-gallery': () => $('inp-gallery').click(),
   manual: () => openEditor({}),
   edit: el => { const d = docs.find(x => String(x.id) === el.dataset.id); if (d) openEditor({ doc: d }); },
@@ -2657,6 +2659,26 @@ document.addEventListener('change', e => { if (e.target.id === 'e-refund-all') s
   if (e.target.id === 'e-date-pick' && e.target.value) { $('e-date').value = isoToIt(e.target.value); dateHint(); if (editing) { editing.dateDone = true; refreshChips(); } } });
 document.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (el && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el, e); });
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.row[data-act]')) { e.preventDefault(); e.target.click(); } });
+/* Fotocamera integrata: non dipende dal comando di sistema (alcuni browser Android, come Opera, non lo aprono nelle app installate) */
+let camStream = null;
+function closeCamera() { if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } $('cam-ov').hidden = true; $('cam-video').srcObject = null; }
+async function openCamera() {
+  const fallback = () => { $('inp-camera').removeAttribute('capture'); $('inp-camera').click(); };
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return fallback();
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1920 } }, audio: false });
+  } catch (e) { toast('Fotocamera non disponibile: scegli la foto dalla galleria o dal selettore'); return fallback(); }
+  const v = $('cam-video'); v.srcObject = camStream; $('cam-ov').hidden = false;
+  try { await v.play(); } catch (e) { /* parte da sola */ }
+}
+function shootCamera() {
+  const v = $('cam-video'); if (!v.videoWidth) { toast('La fotocamera non è ancora pronta'); return; }
+  const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0);
+  closeCamera();
+  c.toBlob(bl => { if (!bl) return; handleFile(new File([bl], 'foto.jpg', { type: 'image/jpeg' })); c.width = 0; }, 'image/jpeg', 0.92);
+}
+$('cam-shot').addEventListener('click', shootCamera);
+$('cam-cancel').addEventListener('click', closeCamera);
 ['inp-camera', 'inp-gallery'].forEach(id => $(id).addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; handleFile(f); }));
 $('inp-backup').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; importJSON(f); });
 ['f-year', 'f-person', 'f-type', 'f-basis'].forEach(id => $(id).addEventListener('change', renderReport));
